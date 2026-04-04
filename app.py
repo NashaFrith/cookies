@@ -1,0 +1,775 @@
+import json
+import os
+import re
+import tempfile
+import requests
+from flask import Flask, jsonify, render_template, abort, request, redirect, url_for
+
+app = Flask(__name__, static_folder='static', template_folder='templates')
+
+DATA_PATH  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'recipes.json')
+NOTES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'notes.json')
+PLAN_PATH    = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'plan.json')
+GROCERY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'grocery.json')
+GIST_ID    = os.environ.get('GIST_ID', 'bacfef3dd910515318fca3cfb5d3f50d')
+GH_TOKEN   = os.environ.get('GITHUB_TOKEN', '')
+GIST_FILE  = 'recipes.json'
+NOTES_FILE = 'notes.json'
+PLAN_FILE    = 'plan.json'
+GROCERY_FILE = 'grocery.json'
+MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack']
+
+CATEGORY_ORDER = [
+    'Breakfast and Baked Goods',
+    'Appetizers and Snacks',
+    'Soups, Sides and Salads',
+    'Entrees',
+    'Desserts',
+    'Drinks',
+    'Condiments and Sauces',
+]
+
+RESERVED_SLUGS = {'new', 'edit'}
+
+# ── Persistence helpers ────────────────────────────────────────
+
+def load_recipes():
+    if GH_TOKEN:
+        try:
+            r = requests.get(
+                f'https://api.github.com/gists/{GIST_ID}',
+                headers={'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'},
+                timeout=10
+            )
+            r.raise_for_status()
+            content = r.json()['files'][GIST_FILE]['content']
+            data = json.loads(content)['recipes']
+            return data
+        except Exception as e:
+            print(f'WARNING: Gist load failed ({e}), falling back to local file')
+    with open(DATA_PATH, 'r', encoding='utf-8') as f:
+        data = json.load(f)['recipes']
+    for r in data:
+        if r['category'] not in CATEGORY_ORDER:
+            print(f"WARNING: Recipe '{r['id']}' has unknown category '{r['category']}'")
+    return data
+
+def save_recipes(recipes):
+    if GH_TOKEN:
+        try:
+            content = json.dumps({'recipes': recipes}, indent=2, ensure_ascii=False)
+            r = requests.patch(
+                f'https://api.github.com/gists/{GIST_ID}',
+                headers={'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'},
+                json={'files': {GIST_FILE: {'content': content}}},
+                timeout=10
+            )
+            r.raise_for_status()
+            # Also update local file to keep them in sync
+            _write_local(recipes)
+            return
+        except Exception as e:
+            print(f'WARNING: Gist save failed ({e}), saving locally only')
+    _write_local(recipes)
+
+def _write_local(recipes):
+    dir_ = os.path.dirname(DATA_PATH)
+    with tempfile.NamedTemporaryFile('w', dir=dir_, delete=False, suffix='.tmp', encoding='utf-8') as tmp:
+        json.dump({'recipes': recipes}, tmp, indent=2, ensure_ascii=False)
+        tmp_path = tmp.name
+    os.replace(tmp_path, DATA_PATH)
+
+# ── Notes persistence ─────────────────────────────────────────
+
+def load_notes():
+    if GH_TOKEN:
+        try:
+            r = requests.get(
+                f'https://api.github.com/gists/{GIST_ID}',
+                headers={'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'},
+                timeout=10
+            )
+            r.raise_for_status()
+            files = r.json().get('files', {})
+            if NOTES_FILE in files:
+                return json.loads(files[NOTES_FILE]['content'])
+            return {}
+        except Exception as e:
+            print(f'WARNING: Gist notes load failed ({e}), falling back to local')
+    if os.path.exists(NOTES_PATH):
+        with open(NOTES_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def save_notes(notes):
+    if GH_TOKEN:
+        try:
+            content = json.dumps(notes, indent=2, ensure_ascii=False)
+            r = requests.patch(
+                f'https://api.github.com/gists/{GIST_ID}',
+                headers={'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'},
+                json={'files': {NOTES_FILE: {'content': content}}},
+                timeout=10
+            )
+            r.raise_for_status()
+            _write_local_notes(notes)
+            return
+        except Exception as e:
+            print(f'WARNING: Gist notes save failed ({e}), saving locally only')
+    _write_local_notes(notes)
+
+def _write_local_notes(notes):
+    dir_ = os.path.dirname(NOTES_PATH)
+    with tempfile.NamedTemporaryFile('w', dir=dir_, delete=False, suffix='.tmp', encoding='utf-8') as tmp:
+        json.dump(notes, tmp, indent=2, ensure_ascii=False)
+        tmp_path = tmp.name
+    os.replace(tmp_path, NOTES_PATH)
+
+# ── Plan persistence ──────────────────────────────────────────
+
+def load_plan():
+    if GH_TOKEN:
+        try:
+            r = requests.get(
+                f'https://api.github.com/gists/{GIST_ID}',
+                headers={'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'},
+                timeout=10
+            )
+            r.raise_for_status()
+            files = r.json().get('files', {})
+            if PLAN_FILE in files:
+                return json.loads(files[PLAN_FILE]['content'])
+            return {}
+        except Exception as e:
+            print(f'WARNING: Gist plan load failed ({e}), falling back to local')
+    if os.path.exists(PLAN_PATH):
+        with open(PLAN_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def save_plan(plan):
+    if GH_TOKEN:
+        try:
+            content = json.dumps(plan, indent=2, ensure_ascii=False)
+            r = requests.patch(
+                f'https://api.github.com/gists/{GIST_ID}',
+                headers={'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'},
+                json={'files': {PLAN_FILE: {'content': content}}},
+                timeout=10
+            )
+            r.raise_for_status()
+            _write_local_plan(plan)
+            return
+        except Exception as e:
+            print(f'WARNING: Gist plan save failed ({e}), saving locally only')
+    _write_local_plan(plan)
+
+def _write_local_plan(plan):
+    dir_ = os.path.dirname(PLAN_PATH)
+    with tempfile.NamedTemporaryFile('w', dir=dir_, delete=False, suffix='.tmp', encoding='utf-8') as tmp:
+        json.dump(plan, tmp, indent=2, ensure_ascii=False)
+        tmp_path = tmp.name
+    os.replace(tmp_path, PLAN_PATH)
+
+# ── Grocery persistence ───────────────────────────────────────
+
+def load_grocery():
+    if GH_TOKEN:
+        try:
+            r = requests.get(
+                f'https://api.github.com/gists/{GIST_ID}',
+                headers={'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'},
+                timeout=10
+            )
+            r.raise_for_status()
+            files = r.json().get('files', {})
+            if GROCERY_FILE in files:
+                return json.loads(files[GROCERY_FILE]['content'])
+            return {}
+        except Exception as e:
+            print(f'WARNING: Gist grocery load failed ({e}), falling back to local')
+    if os.path.exists(GROCERY_PATH):
+        with open(GROCERY_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def save_grocery(grocery):
+    if GH_TOKEN:
+        try:
+            content = json.dumps(grocery, indent=2, ensure_ascii=False)
+            r = requests.patch(
+                f'https://api.github.com/gists/{GIST_ID}',
+                headers={'Authorization': f'token {GH_TOKEN}', 'Accept': 'application/vnd.github.v3+json'},
+                json={'files': {GROCERY_FILE: {'content': content}}},
+                timeout=10
+            )
+            r.raise_for_status()
+            _write_local_grocery(grocery)
+            return
+        except Exception as e:
+            print(f'WARNING: Gist grocery save failed ({e}), saving locally only')
+    _write_local_grocery(grocery)
+
+def _write_local_grocery(grocery):
+    dir_ = os.path.dirname(GROCERY_PATH)
+    with tempfile.NamedTemporaryFile('w', dir=dir_, delete=False, suffix='.tmp', encoding='utf-8') as tmp:
+        json.dump(grocery, tmp, indent=2, ensure_ascii=False)
+        tmp_path = tmp.name
+    os.replace(tmp_path, GROCERY_PATH)
+
+# ── Slug helpers ───────────────────────────────────────────────
+
+def slugify(name):
+    slug = name.lower().strip()
+    slug = re.sub(r'[^\w\s-]', '', slug)
+    slug = re.sub(r'[\s_]+', '-', slug)
+    slug = re.sub(r'-+', '-', slug)
+    return slug.strip('-') or 'recipe'
+
+def unique_slug(base, existing_ids):
+    if base in RESERVED_SLUGS or base in existing_ids:
+        counter = 2
+        while f'{base}-{counter}' in existing_ids:
+            counter += 1
+        return f'{base}-{counter}'
+    return base
+
+# ── Form parsing ───────────────────────────────────────────────
+
+def parse_recipe_form(form, recipe_id=None):
+    errors = []
+    name = form.get('recipe_name', '').strip()
+    if not name:
+        errors.append('Recipe name is required.')
+    category = form.get('category', '').strip()
+    if category not in CATEGORY_ORDER:
+        errors.append('Please select a valid category.')
+
+    try:
+        serving_amount = float(form.get('serving_amount', 1))
+    except ValueError:
+        serving_amount = 1
+        errors.append('Serving amount must be a number.')
+    serving_unit = form.get('serving_unit', 'serving').strip() or 'serving'
+
+    time_str = form.get('time_minutes', '').strip()
+    time_minutes = None
+    if time_str:
+        try:
+            time_minutes = int(time_str)
+        except ValueError:
+            errors.append('Time must be a whole number of minutes.')
+
+    ing_names   = form.getlist('ing_name')
+    ing_amounts = form.getlist('ing_amount')
+    ing_units   = form.getlist('ing_unit')
+    ingredients = []
+    for n, a, u in zip(ing_names, ing_amounts, ing_units):
+        if not n.strip():
+            continue
+        try:
+            ingredients.append({'name': n.strip(), 'amount': float(a), 'unit': u.strip()})
+        except ValueError:
+            errors.append(f'Amount for "{n}" must be a number.')
+    if not ingredients:
+        errors.append('At least one ingredient is required.')
+
+    instructions = [s.strip() for s in form.getlist('instruction') if s.strip()]
+    if not instructions:
+        errors.append('At least one instruction step is required.')
+
+    macros = {}
+    for key in ('calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'):
+        try:
+            macros[key] = int(round(float(form.get(key, 0) or 0)))
+        except ValueError:
+            macros[key] = 0
+            errors.append(f'{key} must be a number.')
+
+    effort = form.get('effort', 'easy').strip()
+    if effort not in ('easy', 'medium', 'involved'):
+        effort = 'easy'
+
+    valid_tags = {'comfort food', 'light', 'fast food-ish', 'hearty', 'fresh', 'warming', 'sweet', 'savory', 'treat yourself'}
+    tags = [t for t in form.getlist('tags') if t in valid_tags]
+
+    recipe = {
+        'id': recipe_id or '',
+        'name': name,
+        'category': category,
+        'effort': effort,
+        'tags': tags,
+        'serving_size': {'amount': serving_amount, 'unit': serving_unit},
+        'ingredients': ingredients,
+        'instructions': instructions,
+        'macros': macros,
+    }
+    if time_minutes is not None:
+        recipe['time_minutes'] = time_minutes
+
+    return recipe, errors
+
+# ── Recipe picker scoring ──────────────────────────────────────
+
+def score_recipe(recipe, params):
+    score = 0
+
+    # Time of day match (auto-detected, passed from frontend)
+    tod = params.get('time_of_day', '')
+    category = recipe.get('category', '')
+    if tod == 'morning' and category == 'Breakfast and Baked Goods':
+        score += 3
+    elif tod == 'afternoon' and category in ('Sides and Salads', 'Soups', 'Appetizers and Snacks'):
+        score += 2
+    elif tod == 'evening' and category in ('Entrees', 'Soups', 'Sides and Salads'):
+        score += 3
+    elif tod == 'night' and category in ('Desserts', 'Drinks', 'Snacks'):
+        score += 2
+
+    # Day of week
+    dow = params.get('day_of_week', '')
+    effort = recipe.get('effort', 'easy')
+    if dow in ('Saturday', 'Sunday') and effort == 'involved':
+        score += 2
+    elif dow not in ('Saturday', 'Sunday') and effort == 'easy':
+        score += 2
+
+    # Cook time
+    max_time = params.get('max_time')
+    recipe_time = recipe.get('time_minutes')
+    if max_time and recipe_time:
+        if recipe_time <= int(max_time):
+            score += 2
+        else:
+            score -= 3
+
+    # Effort
+    wanted_effort = params.get('effort', '')
+    if wanted_effort and effort == wanted_effort:
+        score += 3
+
+    # Mood tags
+    wanted_tags = params.get('tags', [])
+    recipe_tags = recipe.get('tags', [])
+    for tag in wanted_tags:
+        if tag in recipe_tags:
+            score += 2
+
+    # Macro filters (multiselect)
+    macro_filters = params.get('macro_filters', [])
+    macros = recipe.get('macros', {})
+    if 'low_calorie' in macro_filters and macros.get('calories', 999) <= 350:
+        score += 2
+    if 'low_carb' in macro_filters and macros.get('carbs_g', 999) <= 20:
+        score += 2
+    if 'high_protein' in macro_filters and macros.get('protein_g', 0) >= 25:
+        score += 2
+    if 'high_fiber' in macro_filters and macros.get('fiber_g', 0) >= 5:
+        score += 2
+
+    return score
+
+# ── Routes ─────────────────────────────────────────────────────
+
+@app.route('/')
+def index():
+    recipes = load_recipes()
+    grouped = {cat: [] for cat in CATEGORY_ORDER}
+    for r in recipes:
+        cat = r.get('category')
+        if cat in grouped:
+            grouped[cat].append({'id': r['id'], 'name': r['name']})
+    return render_template('index.html', grouped=grouped, category_order=CATEGORY_ORDER)
+
+@app.route('/pick')
+def pick():
+    return render_template('picker.html')
+
+@app.route('/api/pick', methods=['POST'])
+def api_pick():
+    params = request.get_json()
+    params['tags'] = params.get('tags', [])
+    params['macro_filters'] = params.get('macro_filters', [])
+    recipes = load_recipes()
+    scored = [(score_recipe(r, params), r) for r in recipes]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    results = [
+        {
+            'id': r['id'],
+            'name': r['name'],
+            'category': r['category'],
+            'time_minutes': r.get('time_minutes'),
+            'effort': r.get('effort'),
+            'tags': r.get('tags', []),
+            'score': s,
+        }
+        for s, r in scored if s > 0
+    ]
+    return jsonify(results)
+
+@app.route('/api/random')
+def api_random():
+    import random as rnd
+    tod = request.args.get('tod', 'evening')
+    preferred = {
+        'morning':   ['Breakfast and Baked Goods', 'Drinks'],
+        'afternoon': ['Entrees', 'Soups, Sides and Salads', 'Appetizers and Snacks'],
+        'evening':   ['Entrees', 'Soups, Sides and Salads'],
+        'night':     ['Appetizers and Snacks', 'Desserts'],
+    }
+    allowed = preferred.get(tod, preferred['evening'])
+    recipes = load_recipes()
+    pool = [r for r in recipes if r.get('category') in allowed]
+    if not pool:
+        pool = [r for r in recipes if r.get('category') not in ('Drinks', 'Condiments and Sauces')]
+    if not pool:
+        pool = recipes
+    pick = rnd.choice(pool)
+    return jsonify({'id': pick['id'], 'name': pick['name'], 'tod': tod})
+
+@app.route('/recipe/new', methods=['GET', 'POST'])
+def recipe_new():
+    if request.method == 'POST':
+        recipe, errors = parse_recipe_form(request.form)
+        if errors:
+            return render_template('recipe_form.html', recipe=recipe, errors=errors,
+                                   form_action=url_for('recipe_new'), page_title='Add Recipe',
+                                   category_order=CATEGORY_ORDER)
+        recipes = load_recipes()
+        base = slugify(recipe['name'])
+        recipe['id'] = unique_slug(base, {r['id'] for r in recipes})
+        recipes.append(recipe)
+        save_recipes(recipes)
+        return redirect(url_for('recipe_page', recipe_id=recipe['id']))
+    return render_template('recipe_form.html', recipe=None, errors=[],
+                           form_action=url_for('recipe_new'), page_title='Add Recipe',
+                           category_order=CATEGORY_ORDER)
+
+@app.route('/recipe/<recipe_id>/edit', methods=['GET', 'POST'])
+def recipe_edit(recipe_id):
+    recipes = load_recipes()
+    existing = next((r for r in recipes if r['id'] == recipe_id), None)
+    if not existing:
+        abort(404)
+    if request.method == 'POST':
+        recipe, errors = parse_recipe_form(request.form, recipe_id=recipe_id)
+        if errors:
+            return render_template('recipe_form.html', recipe=recipe, errors=errors,
+                                   form_action=url_for('recipe_edit', recipe_id=recipe_id),
+                                   page_title='Edit Recipe', category_order=CATEGORY_ORDER)
+        for i, r in enumerate(recipes):
+            if r['id'] == recipe_id:
+                recipes[i] = recipe
+                break
+        save_recipes(recipes)
+        return redirect(url_for('recipe_page', recipe_id=recipe_id))
+    return render_template('recipe_form.html', recipe=existing, errors=[],
+                           form_action=url_for('recipe_edit', recipe_id=recipe_id),
+                           page_title='Edit Recipe', category_order=CATEGORY_ORDER)
+
+@app.route('/recipe/<recipe_id>/delete', methods=['POST'])
+def recipe_delete(recipe_id):
+    recipes = load_recipes()
+    recipes = [r for r in recipes if r['id'] != recipe_id]
+    save_recipes(recipes)
+    return redirect(url_for('index'))
+
+@app.route('/recipe/<recipe_id>')
+def recipe_page(recipe_id):
+    recipes = load_recipes()
+    notes = load_notes()
+    for r in recipes:
+        if r['id'] == recipe_id:
+            return render_template('recipe.html', recipe=r, note=notes.get(recipe_id, {}))
+    abort(404)
+
+@app.route('/api/notes/<recipe_id>', methods=['GET'])
+def get_note(recipe_id):
+    notes = load_notes()
+    return jsonify(notes.get(recipe_id, {}))
+
+@app.route('/api/notes/<recipe_id>', methods=['POST'])
+def save_note(recipe_id):
+    data = request.get_json()
+    notes = load_notes()
+    notes[recipe_id] = {
+        'rating': int(data.get('rating', 0)),
+        'text': data.get('text', '').strip(),
+    }
+    save_notes(notes)
+    return jsonify({'ok': True})
+
+@app.route('/api/recipe/<recipe_id>')
+def get_recipe(recipe_id):
+    recipes = load_recipes()
+    for r in recipes:
+        if r['id'] == recipe_id:
+            return jsonify(r)
+    abort(404)
+
+@app.route('/plan')
+def plan_page():
+    recipes = load_recipes()
+    recipe_list = [{'id': r['id'], 'name': r['name'], 'category': r['category']} for r in recipes]
+    return render_template('planner.html', recipes=recipe_list, category_order=CATEGORY_ORDER)
+
+@app.route('/api/plan')
+def api_plan():
+    from datetime import date, timedelta
+    week_str = request.args.get('week')
+    try:
+        week_start = date.fromisoformat(week_str)
+    except (TypeError, ValueError):
+        today = date.today()
+        days_since_sunday = today.weekday() + 1 if today.weekday() != 6 else 0
+        week_start = today - timedelta(days=days_since_sunday % 7)
+
+    plan = load_plan()
+    recipes = load_recipes()
+    recipe_map = {r['id']: r for r in recipes}
+
+    days = []
+    week_totals = {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0}
+
+    for i in range(7):
+        day = week_start + timedelta(days=i)
+        day_str = day.isoformat()
+        day_plan = plan.get(day_str, {})
+
+        slots = {}
+        day_totals = {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0}
+
+        for slot in MEAL_SLOTS:
+            slot_recipes = []
+            for rid in day_plan.get(slot, []):
+                r = recipe_map.get(rid)
+                if r:
+                    slot_recipes.append({'id': r['id'], 'name': r['name'], 'macros': r['macros']})
+                    for key in day_totals:
+                        day_totals[key] += r['macros'].get(key, 0)
+            slots[slot] = slot_recipes
+
+        for key in week_totals:
+            week_totals[key] += day_totals[key]
+
+        days.append({
+            'date': day_str,
+            'day_name': day.strftime('%a'),
+            'day_num': day.day,
+            'month_abbr': day.strftime('%b'),
+            'slots': slots,
+            'totals': day_totals,
+        })
+
+    return jsonify({'week_start': week_start.isoformat(), 'days': days, 'week_totals': week_totals})
+
+@app.route('/api/plan/add', methods=['POST'])
+def api_plan_add():
+    data = request.get_json()
+    date_str = data.get('date')
+    slot = data.get('slot')
+    recipe_id = data.get('recipe_id')
+    if not all([date_str, slot, recipe_id]) or slot not in MEAL_SLOTS:
+        abort(400)
+    plan = load_plan()
+    plan.setdefault(date_str, {}).setdefault(slot, [])
+    if recipe_id not in plan[date_str][slot]:
+        plan[date_str][slot].append(recipe_id)
+    save_plan(plan)
+    return jsonify({'ok': True})
+
+@app.route('/api/plan/remove', methods=['POST'])
+def api_plan_remove():
+    data = request.get_json()
+    date_str = data.get('date')
+    slot = data.get('slot')
+    recipe_id = data.get('recipe_id')
+    plan = load_plan()
+    if date_str in plan and slot in plan.get(date_str, {}):
+        plan[date_str][slot] = [r for r in plan[date_str][slot] if r != recipe_id]
+    save_plan(plan)
+    return jsonify({'ok': True})
+
+@app.route('/grocery')
+def grocery_page():
+    return render_template('grocery.html')
+
+@app.route('/api/grocery')
+def api_grocery():
+    from datetime import date
+    today = date.today()
+    grocery = load_grocery()
+    pantry = grocery.get('pantry', [])
+    for item in pantry:
+        if item.get('expires'):
+            try:
+                days_left = (date.fromisoformat(item['expires']) - today).days
+                item['days_left'] = days_left
+            except ValueError:
+                item['days_left'] = None
+        else:
+            item['days_left'] = None
+    return jsonify({'pantry': pantry, 'shopping': grocery.get('shopping', [])})
+
+@app.route('/api/grocery/pantry/add', methods=['POST'])
+def grocery_pantry_add():
+    import time as _time
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    if not name:
+        abort(400)
+    grocery = load_grocery()
+    grocery.setdefault('pantry', []).append({
+        'id': str(int(_time.time() * 1000)),
+        'name': name,
+        'amount': data.get('amount', ''),
+        'unit': data.get('unit', '').strip(),
+        'expires': data.get('expires', ''),
+    })
+    save_grocery(grocery)
+    return jsonify({'ok': True})
+
+@app.route('/api/grocery/pantry/remove', methods=['POST'])
+def grocery_pantry_remove():
+    data = request.get_json()
+    item_id = data.get('id')
+    grocery = load_grocery()
+    grocery['pantry'] = [i for i in grocery.get('pantry', []) if i.get('id') != item_id]
+    save_grocery(grocery)
+    return jsonify({'ok': True})
+
+@app.route('/api/grocery/shopping/add', methods=['POST'])
+def grocery_shopping_add():
+    import time as _time
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    if not name:
+        abort(400)
+    grocery = load_grocery()
+    grocery.setdefault('shopping', []).append({
+        'id': str(int(_time.time() * 1000)),
+        'name': name,
+        'amount': data.get('amount', ''),
+        'unit': data.get('unit', '').strip(),
+        'note': data.get('note', '').strip(),
+        'checked': False,
+    })
+    save_grocery(grocery)
+    return jsonify({'ok': True})
+
+@app.route('/api/grocery/shopping/remove', methods=['POST'])
+def grocery_shopping_remove():
+    data = request.get_json()
+    item_id = data.get('id')
+    grocery = load_grocery()
+    grocery['shopping'] = [i for i in grocery.get('shopping', []) if i.get('id') != item_id]
+    save_grocery(grocery)
+    return jsonify({'ok': True})
+
+@app.route('/api/grocery/shopping/check', methods=['POST'])
+def grocery_shopping_check():
+    data = request.get_json()
+    item_id = data.get('id')
+    checked = bool(data.get('checked', False))
+    grocery = load_grocery()
+    for item in grocery.get('shopping', []):
+        if item.get('id') == item_id:
+            item['checked'] = checked
+            break
+    save_grocery(grocery)
+    return jsonify({'ok': True})
+
+def _plan_ingredients():
+    from datetime import date, timedelta
+    today = date.today()
+    days_since_sunday = (today.weekday() + 1) % 7
+    week_start = today - timedelta(days=days_since_sunday)
+    plan = load_plan()
+    recipes = load_recipes()
+    recipe_map = {r['id']: r for r in recipes}
+    needed = {}
+    for i in range(7):
+        day_str = (week_start + timedelta(days=i)).isoformat()
+        for slot in MEAL_SLOTS:
+            for rid in plan.get(day_str, {}).get(slot, []):
+                r = recipe_map.get(rid)
+                if r:
+                    for ing in r.get('ingredients', []):
+                        key = ing['name'].lower().strip()
+                        if key not in needed:
+                            needed[key] = {'name': ing['name'], 'amount': ing['amount'], 'unit': ing['unit']}
+                        else:
+                            try:
+                                needed[key]['amount'] += float(ing['amount'])
+                            except (TypeError, ValueError):
+                                pass
+    return needed
+
+@app.route('/api/grocery/shopping/uncheck-all', methods=['POST'])
+def grocery_uncheck_all():
+    grocery = load_grocery()
+    for item in grocery.get('shopping', []):
+        item['checked'] = False
+    save_grocery(grocery)
+    return jsonify({'ok': True})
+
+@app.route('/api/grocery/shopping/move-to-pantry', methods=['POST'])
+def grocery_move_to_pantry():
+    import time as _time
+    grocery = load_grocery()
+    checked = [i for i in grocery.get('shopping', []) if i.get('checked')]
+    remaining = [i for i in grocery.get('shopping', []) if not i.get('checked')]
+    grocery['shopping'] = remaining
+    grocery.setdefault('pantry', [])
+    for idx, item in enumerate(checked):
+        grocery['pantry'].append({
+            'id': str(int(_time.time() * 1000)) + str(idx),
+            'name': item['name'],
+            'amount': item.get('amount', ''),
+            'unit': item.get('unit', ''),
+            'expires': '',
+        })
+    save_grocery(grocery)
+    return jsonify({'ok': True, 'moved': len(checked)})
+
+@app.route('/api/grocery/from-plan', methods=['GET'])
+def grocery_from_plan_preview():
+    needed = _plan_ingredients()
+    grocery = load_grocery()
+    pantry_names = {i['name'].lower().strip() for i in grocery.get('pantry', [])}
+    shopping_names = {i['name'].lower().strip() for i in grocery.get('shopping', [])}
+    items = []
+    for key, ing in needed.items():
+        items.append({
+            'name': ing['name'],
+            'amount': ing['amount'],
+            'unit': ing['unit'],
+            'in_pantry': key in pantry_names,
+            'in_shopping': key in shopping_names,
+        })
+    return jsonify({'items': items})
+
+@app.route('/api/grocery/from-plan', methods=['POST'])
+def grocery_from_plan():
+    import time as _time
+    data = request.get_json()
+    items = data.get('items', [])
+    grocery = load_grocery()
+    grocery.setdefault('shopping', [])
+    for idx, ing in enumerate(items):
+        name = ing.get('name', '').strip()
+        if not name:
+            continue
+        grocery['shopping'].append({
+            'id': str(int(_time.time() * 1000)) + str(idx),
+            'name': name,
+            'amount': ing.get('amount', ''),
+            'unit': ing.get('unit', '').strip(),
+            'note': 'from plan',
+            'checked': False,
+        })
+    save_grocery(grocery)
+    return jsonify({'ok': True, 'added': len(items)})
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

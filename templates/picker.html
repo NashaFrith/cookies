@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="recipe-page-nav">
+    <a href="/" class="back-link">← Back to all recipes</a>
+</div>
+
+<div class="form-card" style="margin-bottom:1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+        <h2 class="form-title" style="margin-bottom:0;">What should we make?</h2>
+        <button class="btn-secondary" id="surprise-btn">Surprise me</button>
+    </div>
+    <div id="surprise-msg" style="display:none; font-size:0.82rem; color:var(--text-muted); margin-bottom:1rem; font-style:italic;"></div>
+
+    <div id="surprise-spinner" style="display:none; text-align:center; padding:2rem 0;">
+        <div class="spin-wheel"></div>
+        <p class="spin-label">hehehe what's it gonna be...</p>
+    </div>
+
+    <div class="picker-auto-row">
+        <div class="picker-auto-item">
+            <span class="form-label">Time of Day</span>
+            <span class="picker-auto-value" id="tod-display">—</span>
+        </div>
+        <div class="picker-auto-item">
+            <span class="form-label">Day</span>
+            <span class="picker-auto-value" id="dow-display">—</span>
+        </div>
+    </div>
+
+    <div class="form-row" style="margin-top:1rem;">
+        <div class="form-group form-group-sm">
+            <label class="form-label">Max Cook Time</label>
+            <select class="form-input" id="max-time">
+                <option value="">Any</option>
+                <option value="10">10 min</option>
+                <option value="20">20 min</option>
+                <option value="30">30 min</option>
+                <option value="60">1 hour</option>
+            </select>
+        </div>
+        <div class="form-group form-group-sm">
+            <label class="form-label">Effort</label>
+            <select class="form-input" id="effort">
+                <option value="">Any</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="involved">Involved</option>
+            </select>
+        </div>
+    </div>
+
+    <p class="form-section-label">Mood</p>
+    <div class="tags-grid" id="mood-tags">
+        {% for tag in ['comfort food', 'light', 'fast food-ish', 'hearty', 'fresh', 'warming', 'sweet', 'savory', 'treat yourself'] %}
+        <label class="tag-checkbox">
+            <input type="checkbox" value="{{ tag }}"> {{ tag }}
+        </label>
+        {% endfor %}
+    </div>
+
+    <p class="form-section-label">Macro Goals</p>
+    <div class="tags-grid" id="macro-filters">
+        <label class="tag-checkbox" title="≤ 350 calories"><input type="checkbox" value="low_calorie"> Low Calorie</label>
+        <label class="tag-checkbox" title="≤ 20g carbs"><input type="checkbox" value="low_carb"> Low Carb</label>
+        <label class="tag-checkbox" title="≥ 25g protein"><input type="checkbox" value="high_protein"> High Protein</label>
+        <label class="tag-checkbox" title="≥ 5g fiber"><input type="checkbox" value="high_fiber"> High Fiber</label>
+    </div>
+
+    <div class="form-actions">
+        <button class="btn-primary" id="pick-btn">Find Recipes</button>
+    </div>
+</div>
+
+<div id="picker-results" style="display:none;">
+    <p class="form-section-label" style="margin-bottom:0.75rem;">Suggestions</p>
+    <div id="results-list"></div>
+    <p id="no-results" style="display:none; font-size:0.88rem; color:var(--text-muted); text-align:center; padding:2rem 0;">
+        No matches found — try relaxing your filters!
+    </p>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+(function() {
+    // ── Surprise me ────────────────────────────────────────────
+    const lateNightQuips = [
+        "It's late… are you sure about this? Fine, here's something light.",
+        "Eating at this hour? No judgment. Okay, a little judgment.",
+        "Late night snacking? We've all been there. Here you go.",
+        "Your stomach called. At this hour? Bold move.",
+    ];
+
+    document.getElementById('surprise-btn').addEventListener('click', () => {
+        const h = new Date().getHours();
+        let todKey;
+        if (h >= 5 && h < 12)       todKey = 'morning';
+        else if (h >= 12 && h < 17) todKey = 'afternoon';
+        else if (h >= 17 && h < 21) todKey = 'evening';
+        else                        todKey = 'night';
+
+        const msgEl = document.getElementById('surprise-msg');
+        if (todKey === 'night') {
+            msgEl.textContent = lateNightQuips[Math.floor(Math.random() * lateNightQuips.length)];
+            msgEl.style.display = 'block';
+        } else {
+            msgEl.style.display = 'none';
+        }
+
+        document.getElementById('surprise-spinner').style.display = 'block';
+        document.getElementById('surprise-btn').disabled = true;
+
+        const [fetchPromise, timerPromise] = [
+            fetch('/api/random?tod=' + todKey).then(r => r.json()),
+            new Promise(resolve => setTimeout(resolve, 1800)),
+        ];
+
+        Promise.all([fetchPromise, timerPromise]).then(([data]) => {
+            window.location.href = '/recipe/' + data.id;
+        });
+    });
+
+    // ── Auto-detect time of day and day of week ────────────────
+    const now = new Date();
+    const hour = now.getHours();
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const dow = days[now.getDay()];
+
+    let tod, todLabel;
+    if (hour >= 5 && hour < 12)       { tod = 'morning';   todLabel = 'Morning'; }
+    else if (hour >= 12 && hour < 17) { tod = 'afternoon'; todLabel = 'Afternoon'; }
+    else if (hour >= 17 && hour < 21) { tod = 'evening';   todLabel = 'Evening'; }
+    else                              { tod = 'night';     todLabel = 'Night'; }
+
+    document.getElementById('tod-display').textContent = todLabel;
+    document.getElementById('dow-display').textContent = dow;
+
+    // ── Pick button ────────────────────────────────────────────
+    document.getElementById('pick-btn').addEventListener('click', () => {
+        const tags = [...document.querySelectorAll('#mood-tags input:checked')].map(i => i.value);
+        const macroFilters = [...document.querySelectorAll('#macro-filters input:checked')].map(i => i.value);
+
+        const params = {
+            time_of_day: tod,
+            day_of_week: dow,
+            max_time: document.getElementById('max-time').value || null,
+            effort: document.getElementById('effort').value || null,
+            tags,
+            macro_filters: macroFilters,
+        };
+
+        fetch('/api/pick', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        })
+        .then(r => r.json())
+        .then(results => {
+            const container = document.getElementById('picker-results');
+            const list = document.getElementById('results-list');
+            const noResults = document.getElementById('no-results');
+
+            container.style.display = 'block';
+            list.innerHTML = '';
+
+            if (!results.length) {
+                noResults.style.display = 'block';
+                return;
+            }
+            noResults.style.display = 'none';
+
+            results.forEach((r, i) => {
+                const card = document.createElement('a');
+                card.href = '/recipe/' + r.id;
+                card.className = 'picker-result-card';
+                if (i === 0) card.classList.add('top-pick');
+
+                const timeStr = r.time_minutes ? `${r.time_minutes} min` : '';
+                const effortStr = r.effort || '';
+                const meta = [timeStr, effortStr].filter(Boolean).join(' · ');
+                const tagsHTML = r.tags.map(t => `<span class="recipe-tag">${t}</span>`).join('');
+
+                card.innerHTML = `
+                    ${i === 0 ? '<span class="top-pick-badge">Top Pick</span>' : ''}
+                    <div class="picker-result-name">${r.name}</div>
+                    <div class="picker-result-meta">${r.category}${meta ? ' · ' + meta : ''}</div>
+                    ${tagsHTML ? `<div class="recipe-tags" style="margin-top:0.4rem;">${tagsHTML}</div>` : ''}
+                `;
+                list.appendChild(card);
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

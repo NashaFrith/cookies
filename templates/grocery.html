@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="grocery-layout">
+
+    <!-- On Hand -->
+    <div class="grocery-panel">
+        <div class="grocery-panel-header">
+            <span class="grocery-panel-title">On Hand</span>
+        </div>
+
+        <div id="spoiling-alert" style="display:none;"></div>
+        <ul class="grocery-list" id="pantry-list"></ul>
+
+        <form class="grocery-add-form" id="pantry-form">
+            <input class="form-input grocery-input-name" type="text" name="name" placeholder="Item name" required>
+            <div class="grocery-add-row">
+                <input class="form-input grocery-input-sm" type="text" name="amount" placeholder="Qty">
+                <input class="form-input grocery-input-sm" type="text" name="unit" placeholder="Unit">
+                <input class="form-input grocery-input-date" type="date" name="expires" title="Expiry date (optional)">
+            </div>
+            <button class="btn-add-row" type="submit">+ Add to pantry</button>
+        </form>
+    </div>
+
+    <!-- Shopping List -->
+    <div class="grocery-panel">
+        <div class="grocery-panel-header">
+            <span class="grocery-panel-title">Shopping List</span>
+            <button class="btn-from-plan" id="from-plan-btn">+ From this week's plan</button>
+        </div>
+        <div id="from-plan-msg" class="from-plan-msg" style="display:none;"></div>
+        <div id="checked-actions" style="display:none;">
+            <button class="btn-move-pantry" id="move-pantry-btn">✓ Move checked to pantry</button>
+            <button class="btn-uncheck-all" id="uncheck-all-btn">✕ Uncheck all</button>
+        </div>
+
+        <ul class="grocery-list" id="shopping-list"></ul>
+        <p id="shopping-empty" class="grocery-empty" style="display:none;">So we aren't buying any food?</p>
+
+        <form class="grocery-add-form" id="shopping-form">
+            <input class="form-input grocery-input-name" type="text" name="name" placeholder="Item name" required>
+            <div class="grocery-add-row">
+                <input class="form-input grocery-input-sm" type="text" name="amount" placeholder="Qty">
+                <input class="form-input grocery-input-sm" type="text" name="unit" placeholder="Unit">
+            </div>
+            <button class="btn-add-row" type="submit">+ Add to list</button>
+        </form>
+    </div>
+
+</div>
+
+<!-- From-plan preview modal -->
+<div class="modal-backdrop" id="plan-modal-backdrop" style="display:none;">
+    <div class="modal" id="plan-modal">
+        <div class="modal-header">
+            <span class="modal-title">This week's ingredients</span>
+            <button class="modal-close" id="modal-close">×</button>
+        </div>
+        <p class="modal-hint">Uncheck anything you don't need to buy. Items you already have are pre-unchecked.</p>
+        <ul class="modal-list" id="modal-list"></ul>
+        <div class="modal-footer">
+            <button class="btn-primary" id="modal-confirm">Add to shopping list</button>
+            <button class="btn-secondary" id="modal-cancel">Cancel</button>
+            <span class="modal-count" id="modal-count"></span>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/grocery.js') }}"></script>
+{% endblock %}

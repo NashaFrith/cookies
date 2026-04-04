@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="planner-nav-row">
+    <div class="planner-week-nav">
+        <button class="btn-secondary planner-week-btn" id="prev-week">&#8592;</button>
+        <span class="planner-week-label" id="week-label"></span>
+        <button class="btn-secondary planner-week-btn" id="next-week">&#8594;</button>
+    </div>
+    <a href="/" class="back-link">&#8592; Back to recipes</a>
+</div>
+
+<div class="planner-grid" id="planner-grid">
+    <div class="planner-loading">Loading...</div>
+</div>
+
+<div class="week-totals-bar" id="week-totals"></div>
+
+<script>
+window.RECIPES = {{ recipes | tojson }};
+window.CATEGORY_ORDER = {{ category_order | tojson }};
+</script>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/planner.js') }}"></script>
+{% endblock %}

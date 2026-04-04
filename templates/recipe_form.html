@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="margin-bottom:1.5rem;">
+    <a href="/" class="back-link">← Back to all recipes</a>
+</div>
+
+<div class="form-card">
+    <h2 class="form-title">{{ page_title }}</h2>
+
+    {% if errors %}
+    <div class="form-errors">
+        {% for e in errors %}<p>{{ e }}</p>{% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ form_action }}">
+
+        <div class="form-group">
+            <label class="form-label">Recipe Name</label>
+            <input class="form-input" type="text" name="recipe_name"
+                   value="{{ recipe.name if recipe else '' }}" required>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select class="form-input" name="category" required>
+                    <option value="">— select —</option>
+                    {% for cat in category_order %}
+                    <option value="{{ cat }}" {% if recipe and recipe.category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group form-group-sm">
+                <label class="form-label">Time (minutes)</label>
+                <input class="form-input" type="number" name="time_minutes" min="1"
+                       value="{{ recipe.time_minutes if recipe and recipe.time_minutes else '' }}">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group form-group-sm">
+                <label class="form-label">Serving Amount</label>
+                <input class="form-input" type="number" name="serving_amount" min="0.5" step="0.5"
+                       value="{{ recipe.serving_size.amount if recipe else 1 }}" required>
+            </div>
+            <div class="form-group form-group-sm">
+                <label class="form-label">Serving Unit</label>
+                <input class="form-input" type="text" name="serving_unit"
+                       value="{{ recipe.serving_size.unit if recipe else 'serving' }}" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group form-group-sm">
+                <label class="form-label">Effort Level</label>
+                <select class="form-input" name="effort">
+                    <option value="easy" {% if not recipe or recipe.effort == 'easy' %}selected{% endif %}>Easy</option>
+                    <option value="medium" {% if recipe and recipe.effort == 'medium' %}selected{% endif %}>Medium</option>
+                    <option value="involved" {% if recipe and recipe.effort == 'involved' %}selected{% endif %}>Involved</option>
+                </select>
+            </div>
+        </div>
+
+        <p class="form-section-label">Mood Tags</p>
+        <div class="tags-grid">
+            {% set all_tags = ['comfort food', 'light', 'fast food-ish', 'hearty', 'fresh', 'warming', 'sweet', 'savory', 'treat yourself'] %}
+            {% for tag in all_tags %}
+            <label class="tag-checkbox">
+                <input type="checkbox" name="tags" value="{{ tag }}"
+                    {% if recipe and tag in recipe.tags %}checked{% endif %}>
+                {{ tag }}
+            </label>
+            {% endfor %}
+        </div>
+
+        <p class="form-section-label">Macros (per serving)</p>
+        <div class="macro-form-row">
+            <div class="form-group">
+                <label class="form-label">Calories</label>
+                <input class="form-input" type="number" name="calories" min="0"
+                       value="{{ recipe.macros.calories if recipe else 0 }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Protein (g)</label>
+                <input class="form-input" type="number" name="protein_g" min="0"
+                       value="{{ recipe.macros.protein_g if recipe else 0 }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Carbs (g)</label>
+                <input class="form-input" type="number" name="carbs_g" min="0"
+                       value="{{ recipe.macros.carbs_g if recipe else 0 }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Fat (g)</label>
+                <input class="form-input" type="number" name="fat_g" min="0"
+                       value="{{ recipe.macros.fat_g if recipe else 0 }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Fiber (g)</label>
+                <input class="form-input" type="number" name="fiber_g" min="0"
+                       value="{{ recipe.macros.fiber_g if recipe and recipe.macros.fiber_g is defined else 0 }}">
+            </div>
+        </div>
+
+        <p class="form-section-label">Ingredients</p>
+        <div id="ingredient-rows">
+            {% if recipe and recipe.ingredients %}
+                {% for ing in recipe.ingredients %}
+                <div class="ingredient-row">
+                    <input class="form-input ing-name" type="text" name="ing_name"
+                           placeholder="Ingredient" value="{{ ing.name }}" required>
+                    <input class="form-input ing-amount" type="number" name="ing_amount"
+                           placeholder="Amount" step="any" min="0" value="{{ ing.amount }}" required>
+                    <input class="form-input ing-unit" type="text" name="ing_unit"
+                           placeholder="Unit" value="{{ ing.unit }}">
+                    <button type="button" class="remove-row-btn" aria-label="Remove">×</button>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="ingredient-row">
+                    <input class="form-input ing-name" type="text" name="ing_name" placeholder="Ingredient" required>
+                    <input class="form-input ing-amount" type="number" name="ing_amount" placeholder="Amount" step="any" min="0" required>
+                    <input class="form-input ing-unit" type="text" name="ing_unit" placeholder="Unit">
+                    <button type="button" class="remove-row-btn" aria-label="Remove">×</button>
+                </div>
+            {% endif %}
+        </div>
+        <button type="button" class="btn-add-row" id="add-ingredient">+ Add Ingredient</button>
+
+        <p class="form-section-label">Instructions</p>
+        <div id="instruction-rows">
+            {% if recipe and recipe.instructions %}
+                {% for step in recipe.instructions %}
+                <div class="instruction-row">
+                    <textarea class="form-input" name="instruction" rows="2" placeholder="Step…" required>{{ step }}</textarea>
+                    <button type="button" class="remove-row-btn" aria-label="Remove">×</button>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="instruction-row">
+                    <textarea class="form-input" name="instruction" rows="2" placeholder="Step…" required></textarea>
+                    <button type="button" class="remove-row-btn" aria-label="Remove">×</button>
+                </div>
+            {% endif %}
+        </div>
+        <button type="button" class="btn-add-row" id="add-instruction">+ Add Step</button>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Save Recipe</button>
+            <a href="/" class="btn-secondary">Cancel</a>
+        </div>
+
+    </form>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/recipe_form.js') }}"></script>
+{% endblock %}

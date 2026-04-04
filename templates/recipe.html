@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% set macros = recipe.macros %}
+{% set serving = recipe.serving_size %}
+
+{# Schema.org JSON-LD for MacroFactor / Lose It import #}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Recipe",
+  "name": "{{ recipe.name }}",
+  "recipeCategory": "{{ recipe.category }}",
+  "recipeYield": "{{ serving.amount }} {{ serving.unit }}",
+  "recipeIngredient": [
+    {% for ing in recipe.ingredients %}
+    "{{ ing.amount }} {{ ing.unit }} {{ ing.name }}"{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "recipeInstructions": [
+    {% for step in recipe.instructions %}
+    {
+      "@type": "HowToStep",
+      "text": "{{ step }}"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "nutrition": {
+    "@type": "NutritionInformation",
+    "calories": "{{ macros.calories }} calories",
+    "proteinContent": "{{ macros.protein_g }} g",
+    "carbohydrateContent": "{{ macros.carbs_g }} g",
+    "fatContent": "{{ macros.fat_g }} g"
+  }
+}
+</script>
+
+<div class="recipe-page-nav">
+    <a href="/" class="back-link">← Back to all recipes</a>
+    <div class="recipe-actions">
+        <a href="/recipe/{{ recipe.id }}/edit" class="btn-secondary">Edit</a>
+        <button class="btn-danger" id="delete-btn" data-name="{{ recipe.name }}">Delete</button>
+    </div>
+</div>
+
+<form id="delete-form" method="POST" action="/recipe/{{ recipe.id }}/delete" style="display:none;"></form>
+
+<div class="category-section" style="padding: 1.5rem 1.4rem;">
+    <h2 style="font-family:var(--font-heading); font-size:1.8rem; font-weight:400; color:var(--brown-dark); margin-bottom:0.25rem;">{{ recipe.name }}</h2>
+    <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.75rem;">{{ recipe.category }} · {{ serving.amount }} {{ serving.unit }}{% if recipe.time_minutes %} · {{ recipe.time_minutes }} min{% endif %}{% if recipe.effort %} · {{ recipe.effort }}{% endif %}</p>
+    {% if recipe.tags %}
+    <div class="recipe-tags" style="margin-bottom:1.25rem;">
+        {% for tag in recipe.tags %}<span class="recipe-tag">{{ tag }}</span>{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="serving-row">
+        <span class="serving-label">Servings</span>
+        <input class="serving-input" type="number" min="0.5" step="0.5"
+            value="{{ serving.amount }}"
+            data-base="{{ serving.amount }}"
+            id="serving-input">
+        <span class="serving-unit">{{ serving.unit }}</span>
+    </div>
+
+    <div class="macro-panel">
+        <div class="macro-item">
+            <span class="macro-value" data-macro="calories" data-original="{{ macros.calories }}">{{ macros.calories }}</span>
+            <span class="macro-label">Calories</span>
+        </div>
+        <div class="macro-item">
+            <span class="macro-value" data-macro="protein_g" data-original="{{ macros.protein_g }}">{{ macros.protein_g }}g</span>
+            <span class="macro-label">Protein</span>
+        </div>
+        <div class="macro-item">
+            <span class="macro-value" data-macro="carbs_g" data-original="{{ macros.carbs_g }}">{{ macros.carbs_g }}g</span>
+            <span class="macro-label">Carbs</span>
+        </div>
+        <div class="macro-item">
+            <span class="macro-value" data-macro="fat_g" data-original="{{ macros.fat_g }}">{{ macros.fat_g }}g</span>
+            <span class="macro-label">Fat</span>
+        </div>
+        <div class="macro-item">
+            <span class="macro-value" data-macro="fiber_g" data-original="{{ macros.fiber_g or 0 }}">{{ macros.fiber_g or 0 }}g</span>
+            <span class="macro-label">Fiber</span>
+        </div>
+    </div>
+
+    <p class="section-label">Ingredients</p>
+    <ul class="ingredient-list" id="ingredient-list">
+        {% for ing in recipe.ingredients %}
+        <li>
+            <span class="ingredient-amount" data-original="{{ ing.amount }}">{{ ing.amount }} {{ ing.unit }}</span>
+            <span class="ingredient-name">{{ ing.name }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <p class="section-label">Instructions</p>
+    <ol class="instructions-list">
+        {% for step in recipe.instructions %}
+        <li>{{ step }}</li>
+        {% endfor %}
+    </ol>
+
+    <div class="notes-section">
+        <p class="section-label">Our Notes</p>
+        <div class="star-row" id="star-row" data-rating="{{ note.rating or 0 }}">
+            {% for i in range(1, 6) %}
+            <span class="star {% if note.rating and i <= note.rating %}filled{% endif %}" data-val="{{ i }}">★</span>
+            {% endfor %}
+        </div>
+        <textarea class="form-input notes-textarea" id="notes-text" placeholder="How did it go? Any tweaks?">{{ note.text or '' }}</textarea>
+        <div class="notes-actions">
+            <button class="btn-primary" id="save-note-btn">Save Note</button>
+            <span class="notes-saved-msg" id="notes-saved-msg"></span>
+        </div>
+    </div>
+
+    <div class="mf-hint">
+        <strong>Log this recipe:</strong> Open the recipe URL in your nutrition app's recipe importer to auto-fill macros.<br>
+        <button class="mf-url" id="copy-url">{{ request.url }}</button>
+        <span class="copy-hint" id="copy-hint">tap to copy</span>
+        <div class="app-buttons">
+            <a href="https://macrofactorapp.com" target="_blank" rel="noopener" class="btn-app">Open MacroFactor</a>
+            <a href="https://loseit.com" target="_blank" rel="noopener" class="btn-app">Open Lose It</a>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const input = document.getElementById('serving-input');
+    const base = parseFloat(input.dataset.base);
+
+    input.addEventListener('input', () => {
+        const multiplier = (parseFloat(input.value) || 1) / base;
+
+        document.querySelectorAll('[data-macro]').forEach(el => {
+            const orig = parseFloat(el.dataset.original);
+            const macro = el.dataset.macro;
+            el.textContent = Math.round(orig * multiplier) + (macro === 'calories' ? '' : 'g');
+        });
+
+
+        document.querySelectorAll('.ingredient-amount').forEach((el, i) => {
+            const orig = parseFloat(el.dataset.original);
+            const units = el.textContent.trim().split(' ').slice(1).join(' ');
+            const scaled = orig * multiplier;
+            const formatted = scaled === Math.floor(scaled) ? scaled : parseFloat(scaled.toFixed(1));
+            el.textContent = formatted + ' ' + units;
+        });
+    });
+
+    // ── Star rating ────────────────────────────────────────────
+    const starRow = document.getElementById('star-row');
+    let currentRating = parseInt(starRow.dataset.rating) || 0;
+    const stars = starRow.querySelectorAll('.star');
+
+    stars.forEach(star => {
+        star.addEventListener('mouseover', () => {
+            const val = parseInt(star.dataset.val);
+            stars.forEach(s => s.classList.toggle('filled', parseInt(s.dataset.val) <= val));
+        });
+        star.addEventListener('mouseleave', () => {
+            stars.forEach(s => s.classList.toggle('filled', parseInt(s.dataset.val) <= currentRating));
+        });
+        star.addEventListener('click', () => {
+            currentRating = parseInt(star.dataset.val);
+            stars.forEach(s => s.classList.toggle('filled', parseInt(s.dataset.val) <= currentRating));
+        });
+    });
+
+    document.getElementById('save-note-btn').addEventListener('click', () => {
+        const text = document.getElementById('notes-text').value.trim();
+        const msg = document.getElementById('notes-saved-msg');
+        fetch('/api/notes/{{ recipe.id }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: currentRating, text }),
+        }).then(() => {
+            msg.textContent = 'Saved!';
+            setTimeout(() => { msg.textContent = ''; }, 2000);
+        });
+    });
+
+    document.getElementById('delete-btn').addEventListener('click', function() {
+        if (confirm('Delete "' + this.dataset.name + '"? This cannot be undone.')) {
+            document.getElementById('delete-form').submit();
+        }
+    });
+
+    document.getElementById('copy-url').addEventListener('click', function() {
+        navigator.clipboard.writeText(this.textContent.trim()).then(() => {
+            const hint = document.getElementById('copy-hint');
+            hint.textContent = 'copied!';
+            setTimeout(() => { hint.textContent = 'tap to copy'; }, 2000);
+        });
+    });
+})();
+</script>
+
+{% endblock %}

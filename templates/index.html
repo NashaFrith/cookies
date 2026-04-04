@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex; justify-content:flex-end; margin-bottom:1.25rem;">
+    <a href="/recipe/new" class="btn-primary">+ Add Recipe</a>
+</div>
+
+{% for cat in category_order %}
+  {% if grouped[cat] %}
+  <section class="category-section" id="cat-{{ loop.index }}">
+      <div class="category-header">
+          <span class="category-name">{{ cat }}</span>
+          <span class="category-count">{{ grouped[cat]|length }}</span>
+      </div>
+      <ul class="recipe-list">
+          {% for recipe in grouped[cat] %}
+          <li class="recipe-item">
+              <a href="#{{ recipe.id }}" class="recipe-link" data-recipe-id="{{ recipe.id }}">
+                  {{ recipe.name }}
+              </a>
+              <div class="recipe-detail" id="detail-{{ recipe.id }}" hidden></div>
+          </li>
+          {% endfor %}
+      </ul>
+  </section>
+  {% endif %}
+{% endfor %}
+
+{% endblock %}

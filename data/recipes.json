@@ -1,0 +1,150 @@
+{
+  "recipes": [
+    {
+      "id": "classic-omelette",
+      "name": "Classic Omelette",
+      "category": "Breakfast and Baked Goods",
+      "time_minutes": 10,
+      "effort": "easy",
+      "tags": ["savory", "comfort food"],
+      "serving_size": { "amount": 1, "unit": "serving" },
+      "ingredients": [
+        { "name": "Eggs", "amount": 2, "unit": "large" },
+        { "name": "Butter", "amount": 1, "unit": "tbsp" },
+        { "name": "Salt", "amount": 0.25, "unit": "tsp" },
+        { "name": "Black pepper", "amount": 0.125, "unit": "tsp" }
+      ],
+      "instructions": [
+        "Crack eggs into a bowl, season with salt and pepper, and whisk until smooth.",
+        "Melt butter in a non-stick pan over medium heat until foamy.",
+        "Pour in the eggs and let them set slightly around the edges.",
+        "Gently fold the omelette in half and slide onto a plate."
+      ],
+      "macros": {
+        "calories": 220,
+        "protein_g": 14,
+        "carbs_g": 1,
+        "fat_g": 18,
+        "fiber_g": 0
+      }
+    },
+    {
+      "id": "strawberry-banana-smoothie",
+      "name": "Strawberry Banana Smoothie",
+      "category": "Drinks",
+      "time_minutes": 5,
+      "effort": "easy",
+      "tags": ["light", "fresh", "sweet"],
+      "serving_size": { "amount": 1, "unit": "serving" },
+      "ingredients": [
+        { "name": "Frozen strawberries", "amount": 1, "unit": "cup" },
+        { "name": "Banana", "amount": 1, "unit": "medium" },
+        { "name": "Greek yogurt", "amount": 0.5, "unit": "cup" },
+        { "name": "Milk", "amount": 0.5, "unit": "cup" },
+        { "name": "Honey", "amount": 1, "unit": "tsp" }
+      ],
+      "instructions": [
+        "Add all ingredients to a blender.",
+        "Blend on high until smooth and creamy.",
+        "Pour into a glass and serve immediately."
+      ],
+      "macros": {
+        "calories": 280,
+        "protein_g": 12,
+        "carbs_g": 52,
+        "fat_g": 3,
+        "fiber_g": 4
+      }
+    },
+    {
+      "id": "tomato-basil-soup",
+      "name": "Tomato Basil Soup",
+      "category": "Soups, Sides and Salads",
+      "time_minutes": 25,
+      "effort": "easy",
+      "tags": ["comfort food", "warming", "light"],
+      "serving_size": { "amount": 1, "unit": "serving" },
+      "ingredients": [
+        { "name": "Crushed tomatoes", "amount": 2, "unit": "cups" },
+        { "name": "Vegetable broth", "amount": 1, "unit": "cup" },
+        { "name": "Garlic", "amount": 2, "unit": "cloves" },
+        { "name": "Fresh basil", "amount": 0.25, "unit": "cup" },
+        { "name": "Olive oil", "amount": 1, "unit": "tbsp" },
+        { "name": "Salt and pepper", "amount": 1, "unit": "to taste" }
+      ],
+      "instructions": [
+        "Heat olive oil in a pot over medium heat and sauté garlic for 1 minute.",
+        "Add crushed tomatoes and broth. Bring to a simmer and cook for 15 minutes.",
+        "Stir in fresh basil, then blend until smooth using an immersion blender.",
+        "Season with salt and pepper and serve warm."
+      ],
+      "macros": {
+        "calories": 130,
+        "protein_g": 3,
+        "carbs_g": 16,
+        "fat_g": 7,
+        "fiber_g": 4
+      }
+    },
+    {
+      "id": "avocado-toast",
+      "name": "Avocado Toast",
+      "category": "Breakfast and Baked Goods",
+      "time_minutes": 10,
+      "effort": "easy",
+      "tags": ["fresh", "light", "savory"],
+      "serving_size": { "amount": 1, "unit": "serving" },
+      "ingredients": [
+        { "name": "Sourdough bread", "amount": 2, "unit": "slices" },
+        { "name": "Avocado", "amount": 1, "unit": "medium" },
+        { "name": "Lemon juice", "amount": 1, "unit": "tsp" },
+        { "name": "Red pepper flakes", "amount": 0.25, "unit": "tsp" },
+        { "name": "Salt", "amount": 0.25, "unit": "tsp" }
+      ],
+      "instructions": [
+        "Toast the bread until golden and crisp.",
+        "Mash avocado in a bowl with lemon juice and salt.",
+        "Spread the avocado mixture evenly over each slice.",
+        "Finish with a pinch of red pepper flakes."
+      ],
+      "macros": {
+        "calories": 380,
+        "protein_g": 9,
+        "carbs_g": 38,
+        "fat_g": 22,
+        "fiber_g": 10
+      }
+    },
+    {
+      "id": "lemon-herb-chicken",
+      "name": "Lemon Herb Roasted Chicken",
+      "category": "Entrees",
+      "time_minutes": 50,
+      "effort": "medium",
+      "tags": ["savory", "hearty", "fresh"],
+      "serving_size": { "amount": 1, "unit": "serving" },
+      "ingredients": [
+        { "name": "Chicken breast", "amount": 200, "unit": "g" },
+        { "name": "Lemon juice", "amount": 2, "unit": "tbsp" },
+        { "name": "Olive oil", "amount": 1, "unit": "tbsp" },
+        { "name": "Garlic", "amount": 2, "unit": "cloves" },
+        { "name": "Fresh rosemary", "amount": 1, "unit": "sprig" },
+        { "name": "Salt and pepper", "amount": 1, "unit": "to taste" }
+      ],
+      "instructions": [
+        "Preheat oven to 400°F (200°C).",
+        "Mix lemon juice, olive oil, minced garlic, salt and pepper into a marinade.",
+        "Coat the chicken breast thoroughly and let marinate for at least 20 minutes.",
+        "Place in a baking dish with the rosemary sprig and roast for 25–30 minutes until cooked through.",
+        "Let rest for 5 minutes before slicing."
+      ],
+      "macros": {
+        "calories": 310,
+        "protein_g": 40,
+        "carbs_g": 3,
+        "fat_g": 14,
+        "fiber_g": 0
+      }
+    }
+  ]
+}
