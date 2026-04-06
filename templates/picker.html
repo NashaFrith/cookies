@@ -67,6 +67,16 @@
         <label class="tag-checkbox" title="≥ 5g fiber"><input type="checkbox" value="high_fiber"> High Fiber</label>
     </div>
 
+    <div class="picker-pantry-row">
+        <label class="pantry-toggle-label">
+            <div class="toggle-switch">
+                <input type="checkbox" id="pantry-only-toggle">
+                <span class="toggle-slider"></span>
+            </div>
+            <span>Only suggest recipes I have ingredients for</span>
+        </label>
+    </div>
+
     <div class="form-actions">
         <button class="btn-primary" id="pick-btn">Find Recipes</button>
     </div>
@@ -136,10 +146,24 @@
     document.getElementById('tod-display').textContent = todLabel;
     document.getElementById('dow-display').textContent = dow;
 
+    // ── Load pantry for ingredient filter ─────────────────────
+    let pantryNames = new Set();
+    fetch('/api/grocery').then(r => r.json()).then(data => {
+        pantryNames = new Set((data.pantry || []).map(i => i.name.toLowerCase().trim()));
+    }).catch(() => {});
+
+    function recipeHasIngredients(recipe) {
+        if (!recipe.ingredients || !recipe.ingredients.length) return true;
+        return recipe.ingredients.every(ing =>
+            [...pantryNames].some(p => p.includes(ing.name.toLowerCase().trim()) || ing.name.toLowerCase().trim().includes(p))
+        );
+    }
+
     // ── Pick button ────────────────────────────────────────────
     document.getElementById('pick-btn').addEventListener('click', () => {
         const tags = [...document.querySelectorAll('#mood-tags input:checked')].map(i => i.value);
         const macroFilters = [...document.querySelectorAll('#macro-filters input:checked')].map(i => i.value);
+        const pantryOnly = document.getElementById('pantry-only-toggle').checked;
 
         const params = {
             time_of_day: tod,
@@ -156,7 +180,15 @@
             body: JSON.stringify(params),
         })
         .then(r => r.json())
-        .then(results => {
+        .then(async results => {
+            // If pantry toggle is on, fetch full recipe data to check ingredients
+            if (pantryOnly) {
+                const fullRecipes = await Promise.all(
+                    results.map(r => fetch('/api/recipe/' + r.id).then(res => res.json()).catch(() => null))
+                );
+                results = results.filter((r, i) => fullRecipes[i] && recipeHasIngredients(fullRecipes[i]));
+            }
+
             const container = document.getElementById('picker-results');
             const list = document.getElementById('results-list');
             const noResults = document.getElementById('no-results');
@@ -166,6 +198,9 @@
 
             if (!results.length) {
                 noResults.style.display = 'block';
+                noResults.textContent = pantryOnly
+                    ? 'No matches with your current pantry — try turning off the ingredient filter!'
+                    : 'No matches found — try relaxing your filters!';
                 return;
             }
             noResults.style.display = 'none';

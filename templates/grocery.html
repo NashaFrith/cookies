@@ -8,9 +8,10 @@
         <div class="grocery-panel-header">
             <span class="grocery-panel-title">On Hand</span>
         </div>
+        <input class="grocery-search" id="pantry-search" type="text" placeholder="Search pantry...">
 
         <div id="spoiling-alert" style="display:none;"></div>
-        <ul class="grocery-list" id="pantry-list"></ul>
+        <div id="pantry-list"></div>
 
         <form class="grocery-add-form" id="pantry-form">
             <input class="form-input grocery-input-name" type="text" name="name" placeholder="Item name" required>
@@ -19,6 +20,9 @@
                 <input class="form-input grocery-input-sm" type="text" name="unit" placeholder="Unit">
                 <input class="form-input grocery-input-date" type="date" name="expires" title="Expiry date (optional)">
             </div>
+            <select class="form-input grocery-input-category" name="category" id="pantry-category">
+                <option value="Other">Category...</option>
+            </select>
             <button class="btn-add-row" type="submit">+ Add to pantry</button>
         </form>
     </div>
@@ -30,12 +34,13 @@
             <button class="btn-from-plan" id="from-plan-btn">+ From this week's plan</button>
         </div>
         <div id="from-plan-msg" class="from-plan-msg" style="display:none;"></div>
+        <input class="grocery-search" id="shopping-search" type="text" placeholder="Search shopping list...">
         <div id="checked-actions" style="display:none;">
             <button class="btn-move-pantry" id="move-pantry-btn">✓ Move checked to pantry</button>
             <button class="btn-uncheck-all" id="uncheck-all-btn">✕ Uncheck all</button>
         </div>
 
-        <ul class="grocery-list" id="shopping-list"></ul>
+        <div id="shopping-list"></div>
         <p id="shopping-empty" class="grocery-empty" style="display:none;">So we aren't buying any food?</p>
 
         <form class="grocery-add-form" id="shopping-form">
@@ -44,6 +49,9 @@
                 <input class="form-input grocery-input-sm" type="text" name="amount" placeholder="Qty">
                 <input class="form-input grocery-input-sm" type="text" name="unit" placeholder="Unit">
             </div>
+            <select class="form-input grocery-input-category" name="category" id="shopping-category">
+                <option value="Other">Category...</option>
+            </select>
             <button class="btn-add-row" type="submit">+ Add to list</button>
         </form>
     </div>

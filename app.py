@@ -29,6 +29,17 @@ CATEGORY_ORDER = [
     'Condiments and Sauces',
 ]
 
+GROCERY_CATEGORIES = [
+    'Produce',
+    'Meat & Seafood',
+    'Dairy & Eggs',
+    'Bakery & Bread',
+    'Pantry Staples',
+    'Frozen',
+    'Beverages',
+    'Other',
+]
+
 RESERVED_SLUGS = {'new', 'edit'}
 
 # ── Persistence helpers ────────────────────────────────────────
@@ -609,7 +620,7 @@ def api_grocery():
                 item['days_left'] = None
         else:
             item['days_left'] = None
-    return jsonify({'pantry': pantry, 'shopping': grocery.get('shopping', [])})
+    return jsonify({'pantry': pantry, 'shopping': grocery.get('shopping', []), 'categories': GROCERY_CATEGORIES})
 
 @app.route('/api/grocery/pantry/add', methods=['POST'])
 def grocery_pantry_add():
@@ -625,6 +636,7 @@ def grocery_pantry_add():
         'amount': data.get('amount', ''),
         'unit': data.get('unit', '').strip(),
         'expires': data.get('expires', ''),
+        'category': data.get('category', 'Other'),
     })
     save_grocery(grocery)
     return jsonify({'ok': True})
@@ -653,6 +665,7 @@ def grocery_shopping_add():
         'unit': data.get('unit', '').strip(),
         'note': data.get('note', '').strip(),
         'checked': False,
+        'category': data.get('category', 'Other'),
     })
     save_grocery(grocery)
     return jsonify({'ok': True})
@@ -728,6 +741,7 @@ def grocery_move_to_pantry():
             'amount': item.get('amount', ''),
             'unit': item.get('unit', ''),
             'expires': '',
+            'category': item.get('category', 'Other'),
         })
     save_grocery(grocery)
     return jsonify({'ok': True, 'moved': len(checked)})

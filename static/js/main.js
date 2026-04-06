@@ -1,5 +1,25 @@
 'use strict';
 
+// ── Recipe search ──────────────────────────────────────────────
+const recipeSearchInput = document.getElementById('recipe-search');
+if (recipeSearchInput) {
+    recipeSearchInput.addEventListener('input', () => {
+        const q = recipeSearchInput.value.toLowerCase();
+        document.querySelectorAll('.category-section').forEach(section => {
+            let anyVisible = false;
+            section.querySelectorAll('.recipe-item').forEach(item => {
+                const name = item.querySelector('.recipe-link').textContent.toLowerCase();
+                const match = !q || name.includes(q);
+                item.style.display = match ? '' : 'none';
+                if (match) anyVisible = true;
+            });
+            section.style.display = anyVisible ? '' : 'none';
+            // Expand sections that have matches
+            if (q && anyVisible) section.classList.remove('collapsed');
+        });
+    });
+}
+
 // ── Category collapse/expand ───────────────────────────────────
 document.querySelectorAll('.category-header').forEach(header => {
     // Add toggle icon

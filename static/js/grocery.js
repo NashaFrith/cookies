@@ -1,5 +1,9 @@
 'use strict';
 
+let GROCERY_CATEGORIES = [];
+let pantryData = [];
+let shoppingData = [];
+
 async function loadGrocery() {
     const res = await fetch('/api/grocery');
     return res.json();
@@ -12,35 +16,68 @@ function expiryBadge(daysLeft) {
     return `<span class="expiry-badge ok">${daysLeft}d left</span>`;
 }
 
-function renderPantry(pantry) {
-    const list = document.getElementById('pantry-list');
+function populateCategoryDropdowns() {
+    ['pantry-category', 'shopping-category'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = '<option value="Other">Category...</option>' +
+            GROCERY_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+    });
+}
+
+function filterItems(items, query) {
+    if (!query) return items;
+    const q = query.toLowerCase();
+    return items.filter(i => i.name.toLowerCase().includes(q));
+}
+
+function renderPantry(pantry, query) {
+    const container = document.getElementById('pantry-list');
     const alert = document.getElementById('spoiling-alert');
 
     const spoiling = pantry.filter(i => i.days_left !== null && i.days_left <= 3);
+    alert.style.display = spoiling.length ? 'block' : 'none';
     if (spoiling.length) {
-        alert.style.display = 'block';
-        alert.innerHTML = `<div class="spoiling-alert">
-            Use soon: ${spoiling.map(i => `<strong>${i.name}</strong>`).join(', ')}
-        </div>`;
-    } else {
-        alert.style.display = 'none';
+        alert.innerHTML = `<div class="spoiling-alert">Use soon: ${spoiling.map(i => `<strong>${i.name}</strong>`).join(', ')}</div>`;
     }
 
+    const visible = filterItems(pantry, query);
+
     if (!pantry.length) {
-        list.innerHTML = '<li class="grocery-empty-li">We have no food :(</li>';
+        container.innerHTML = '<ul class="grocery-list"><li class="grocery-empty-li">We have no food :(</li></ul>';
+        return;
+    }
+    if (!visible.length) {
+        container.innerHTML = '<ul class="grocery-list"><li class="grocery-empty-li">No matches.</li></ul>';
         return;
     }
 
-    list.innerHTML = pantry.map(item => `
-        <li class="grocery-item">
-            <div class="grocery-item-main">
-                <span class="grocery-item-name">${item.name}</span>
-                ${item.amount || item.unit ? `<span class="grocery-item-meta">${item.amount} ${item.unit}`.trim() + '</span>' : ''}
-                ${expiryBadge(item.days_left)}
+    // Group by category
+    const grouped = {};
+    GROCERY_CATEGORIES.forEach(c => { grouped[c] = []; });
+    visible.forEach(item => {
+        const cat = GROCERY_CATEGORIES.includes(item.category) ? item.category : 'Other';
+        grouped[cat].push(item);
+    });
+
+    container.innerHTML = GROCERY_CATEGORIES
+        .filter(cat => grouped[cat].length)
+        .map(cat => `
+            <div class="grocery-category-group">
+                <div class="grocery-category-label">${cat}</div>
+                <ul class="grocery-list">
+                    ${grouped[cat].map(item => `
+                        <li class="grocery-item">
+                            <div class="grocery-item-main">
+                                <span class="grocery-item-name">${item.name}</span>
+                                ${item.amount || item.unit ? `<span class="grocery-item-meta">${item.amount} ${item.unit}`.trim() + '</span>' : ''}
+                                ${expiryBadge(item.days_left)}
+                            </div>
+                            <button class="grocery-remove" data-id="${item.id}" data-type="pantry">×</button>
+                        </li>
+                    `).join('')}
+                </ul>
             </div>
-            <button class="grocery-remove" data-id="${item.id}" data-type="pantry">×</button>
-        </li>
-    `).join('');
+        `).join('');
 }
 
 function updateMovePantryBtn(shopping) {
@@ -48,41 +85,71 @@ function updateMovePantryBtn(shopping) {
     document.getElementById('checked-actions').style.display = hasChecked ? 'block' : 'none';
 }
 
-function renderShopping(shopping) {
-    const list = document.getElementById('shopping-list');
+function renderShopping(shopping, query) {
+    const container = document.getElementById('shopping-list');
     const empty = document.getElementById('shopping-empty');
-
-    const unchecked = shopping.filter(i => !i.checked);
-    const checked = shopping.filter(i => i.checked);
-    const ordered = [...unchecked, ...checked];
 
     updateMovePantryBtn(shopping);
 
-    if (!ordered.length) {
-        list.innerHTML = '';
+    const visible = filterItems(shopping, query);
+    const unchecked = visible.filter(i => !i.checked);
+    const checked = visible.filter(i => i.checked);
+
+    if (!shopping.length) {
+        container.innerHTML = '';
         empty.style.display = 'block';
         return;
     }
     empty.style.display = 'none';
 
-    list.innerHTML = ordered.map(item => `
-        <li class="grocery-item ${item.checked ? 'grocery-item-checked' : ''}">
-            <label class="grocery-check-label">
-                <input type="checkbox" class="grocery-checkbox"
-                    data-id="${item.id}" ${item.checked ? 'checked' : ''}>
-            </label>
-            <div class="grocery-item-main">
-                <span class="grocery-item-name">${item.name}</span>
-                ${item.amount || item.unit ? `<span class="grocery-item-meta">${item.amount} ${item.unit}`.trim() + '</span>' : ''}
-                ${item.note ? `<span class="grocery-item-note">${item.note}</span>` : ''}
+    if (!visible.length) {
+        container.innerHTML = '<ul class="grocery-list"><li class="grocery-empty-li">No matches.</li></ul>';
+        return;
+    }
+
+    // Group unchecked by category, append checked at bottom ungrouped
+    const grouped = {};
+    GROCERY_CATEGORIES.forEach(c => { grouped[c] = []; });
+    unchecked.forEach(item => {
+        const cat = GROCERY_CATEGORIES.includes(item.category) ? item.category : 'Other';
+        grouped[cat].push(item);
+    });
+
+    function itemHTML(item) {
+        return `
+            <li class="grocery-item ${item.checked ? 'grocery-item-checked' : ''}">
+                <label class="grocery-check-label">
+                    <input type="checkbox" class="grocery-checkbox" data-id="${item.id}" ${item.checked ? 'checked' : ''}>
+                </label>
+                <div class="grocery-item-main">
+                    <span class="grocery-item-name">${item.name}</span>
+                    ${item.amount || item.unit ? `<span class="grocery-item-meta">${item.amount} ${item.unit}`.trim() + '</span>' : ''}
+                    ${item.note ? `<span class="grocery-item-note">${item.note}</span>` : ''}
+                </div>
+                <button class="grocery-remove" data-id="${item.id}" data-type="shopping">×</button>
+            </li>`;
+    }
+
+    const groupedHTML = GROCERY_CATEGORIES
+        .filter(cat => grouped[cat].length)
+        .map(cat => `
+            <div class="grocery-category-group">
+                <div class="grocery-category-label">${cat}</div>
+                <ul class="grocery-list">${grouped[cat].map(itemHTML).join('')}</ul>
             </div>
-            <button class="grocery-remove" data-id="${item.id}" data-type="shopping">×</button>
-        </li>
-    `).join('');
+        `).join('');
+
+    const checkedHTML = checked.length
+        ? `<div class="grocery-category-group">
+               <div class="grocery-category-label" style="opacity:0.5;">In cart</div>
+               <ul class="grocery-list">${checked.map(itemHTML).join('')}</ul>
+           </div>`
+        : '';
+
+    container.innerHTML = groupedHTML + checkedHTML;
 }
 
 function attachHandlers() {
-    // Remove buttons
     document.querySelectorAll('.grocery-remove').forEach(btn => {
         btn.addEventListener('click', async () => {
             const type = btn.dataset.type;
@@ -96,7 +163,6 @@ function attachHandlers() {
         });
     });
 
-    // Checkboxes
     document.querySelectorAll('.grocery-checkbox').forEach(cb => {
         cb.addEventListener('change', async () => {
             await fetch('/api/grocery/shopping/check', {
@@ -111,10 +177,26 @@ function attachHandlers() {
 
 async function refresh() {
     const data = await loadGrocery();
-    renderPantry(data.pantry);
-    renderShopping(data.shopping);
+    GROCERY_CATEGORIES = data.categories || [];
+    pantryData = data.pantry;
+    shoppingData = data.shopping;
+    populateCategoryDropdowns();
+    const pantryQ = document.getElementById('pantry-search').value;
+    const shopQ = document.getElementById('shopping-search').value;
+    renderPantry(pantryData, pantryQ);
+    renderShopping(shoppingData, shopQ);
     attachHandlers();
 }
+
+// Search
+document.getElementById('pantry-search').addEventListener('input', () => {
+    renderPantry(pantryData, document.getElementById('pantry-search').value);
+    attachHandlers();
+});
+document.getElementById('shopping-search').addEventListener('input', () => {
+    renderShopping(shoppingData, document.getElementById('shopping-search').value);
+    attachHandlers();
+});
 
 // Pantry form
 document.getElementById('pantry-form').addEventListener('submit', async e => {
@@ -128,6 +210,7 @@ document.getElementById('pantry-form').addEventListener('submit', async e => {
             amount: form.amount.value.trim(),
             unit: form.unit.value.trim(),
             expires: form.expires.value,
+            category: form.category.value,
         }),
     });
     form.reset();
@@ -145,6 +228,7 @@ document.getElementById('shopping-form').addEventListener('submit', async e => {
             name: form.name.value.trim(),
             amount: form.amount.value.trim(),
             unit: form.unit.value.trim(),
+            category: form.category.value,
         }),
     });
     form.reset();
