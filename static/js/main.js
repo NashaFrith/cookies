@@ -1,5 +1,32 @@
 'use strict';
 
+// ── Eat cookie button ──────────────────────────────────────────
+(function () {
+    const quips = [
+        'nom nom nom',
+        'yummy, thank you!',
+        'so good omg',
+        'another one 👀',
+        'okay okay one more',
+        'we simply cannot stop',
+        'this is fine',
+        'no thoughts, only food',
+        '*chef\u2019s kiss*',
+        'worth it',
+    ];
+    let idx = 0;
+    const btn = document.getElementById('eat-cookie-btn');
+    const text = document.getElementById('subtitle-text');
+    if (btn && text) {
+        btn.addEventListener('click', () => {
+            idx = (idx + 1) % quips.length;
+            text.textContent = quips[idx];
+            btn.classList.add('cookie-bounce');
+            btn.addEventListener('animationend', () => btn.classList.remove('cookie-bounce'), { once: true });
+        });
+    }
+})();
+
 // ── Recipe search ──────────────────────────────────────────────
 const recipeSearchInput = document.getElementById('recipe-search');
 if (recipeSearchInput) {
