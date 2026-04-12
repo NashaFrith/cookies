@@ -63,6 +63,19 @@
         <span class="serving-unit">{{ serving.unit }}</span>
     </div>
 
+    {% if recipe.batch_weight %}
+    <div class="serving-row" style="margin-top:0.5rem;">
+        <span class="serving-label">My portion</span>
+        <input class="serving-input" type="number" min="0" step="any"
+            placeholder="e.g. 120"
+            id="weight-input"
+            data-batch-total="{{ recipe.batch_weight.amount }}"
+            data-serving-amount="{{ serving.amount }}">
+        <span class="serving-unit">{{ recipe.batch_weight.unit }}</span>
+        <span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.25rem;">/ {{ recipe.batch_weight.amount }}{{ recipe.batch_weight.unit }} total</span>
+    </div>
+    {% endif %}
+
     <div class="macro-panel">
         <div class="macro-item">
             <span class="macro-value" data-macro="calories" data-original="{{ macros.calories }}">{{ macros.calories }}</span>
@@ -132,25 +145,39 @@
 (function() {
     const input = document.getElementById('serving-input');
     const base = parseFloat(input.dataset.base);
+    const weightInput = document.getElementById('weight-input');
 
-    input.addEventListener('input', () => {
-        const multiplier = (parseFloat(input.value) || 1) / base;
-
+    function applyMultiplier(multiplier) {
         document.querySelectorAll('[data-macro]').forEach(el => {
             const orig = parseFloat(el.dataset.original);
             const macro = el.dataset.macro;
             el.textContent = Math.round(orig * multiplier) + (macro === 'calories' ? '' : 'g');
         });
-
-
-        document.querySelectorAll('.ingredient-amount').forEach((el, i) => {
+        document.querySelectorAll('.ingredient-amount').forEach(el => {
             const orig = parseFloat(el.dataset.original);
             const units = el.textContent.trim().split(' ').slice(1).join(' ');
             const scaled = orig * multiplier;
-            const formatted = scaled === Math.floor(scaled) ? scaled : parseFloat(scaled.toFixed(1));
-            el.textContent = formatted + ' ' + units;
+            el.textContent = (scaled === Math.floor(scaled) ? scaled : parseFloat(scaled.toFixed(1))) + ' ' + units;
         });
+    }
+
+    input.addEventListener('input', () => {
+        if (weightInput) weightInput.value = '';
+        applyMultiplier((parseFloat(input.value) || 1) / base);
     });
+
+    if (weightInput) {
+        const batchTotal = parseFloat(weightInput.dataset.batchTotal);
+        const servingAmount = parseFloat(weightInput.dataset.servingAmount);
+        weightInput.addEventListener('input', () => {
+            const portion = parseFloat(weightInput.value);
+            if (!portion) { applyMultiplier(1); return; }
+            // multiplier relative to 1 serving = (portion/batchTotal) * servingAmount
+            const multiplier = (portion / batchTotal) * servingAmount;
+            input.value = parseFloat((multiplier * base).toFixed(2));
+            applyMultiplier(multiplier);
+        });
+    }
 
     // ── Star rating ────────────────────────────────────────────
     const starRow = document.getElementById('star-row');

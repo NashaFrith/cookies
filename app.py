@@ -304,6 +304,17 @@ def parse_recipe_form(form, recipe_id=None):
     valid_tags = {'comfort food', 'light', 'fast food-ish', 'hearty', 'fresh', 'warming', 'sweet', 'savory', 'treat yourself'}
     tags = [t for t in form.getlist('tags') if t in valid_tags]
 
+    batch_weight = None
+    batch_weight_str = form.get('batch_weight_amount', '').strip()
+    if batch_weight_str:
+        try:
+            batch_weight = {
+                'amount': float(batch_weight_str),
+                'unit': form.get('batch_weight_unit', 'g').strip() or 'g',
+            }
+        except ValueError:
+            errors.append('Batch weight must be a number.')
+
     recipe = {
         'id': recipe_id or '',
         'name': name,
@@ -317,6 +328,8 @@ def parse_recipe_form(form, recipe_id=None):
     }
     if time_minutes is not None:
         recipe['time_minutes'] = time_minutes
+    if batch_weight:
+        recipe['batch_weight'] = batch_weight
 
     return recipe, errors
 
