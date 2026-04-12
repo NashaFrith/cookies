@@ -16,10 +16,9 @@
       <ul class="recipe-list">
           {% for recipe in grouped[cat] %}
           <li class="recipe-item">
-              <a href="#{{ recipe.id }}" class="recipe-link" data-recipe-id="{{ recipe.id }}">
+              <a href="/recipe/{{ recipe.id }}" class="recipe-link">
                   {{ recipe.name }}
               </a>
-              <div class="recipe-detail" id="detail-{{ recipe.id }}" hidden></div>
           </li>
           {% endfor %}
       </ul>
