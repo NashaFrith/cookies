@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookies and other Things — Login</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍪</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="site-header">
+        <h1>Cookies and other Things</h1>
+        <p class="subtitle">nom nom nom 🍪</p>
+    </header>
+    <main class="container" style="max-width:380px;">
+        <div class="form-card">
+            <h2 class="form-title" style="margin-bottom:1.5rem;">Welcome back</h2>
+            {% if error %}
+            <div class="form-errors" style="margin-bottom:1rem;"><p>{{ error }}</p></div>
+            {% endif %}
+            <form method="POST">
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input class="form-input" type="password" name="password" autofocus autocomplete="current-password">
+                </div>
+                <div class="form-actions" style="margin-top:1.25rem;">
+                    <button type="submit" class="btn-primary" style="width:100%;">Enter</button>
+                </div>
+            </form>
+        </div>
+    </main>
+</body>
+</html>
