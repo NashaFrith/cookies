@@ -85,8 +85,11 @@ function renderGrid(data) {
                         <option value="">+ recipe</option>
                         ${groupedOpts}
                     </select>
-                    <input class="planner-custom-input" type="text" placeholder="+ custom..."
-                        data-date="${day.date}" data-slot="${slot}">
+                    <div class="planner-custom-row">
+                        <input class="planner-custom-input" type="text" placeholder="custom meal..."
+                            data-date="${day.date}" data-slot="${slot}">
+                        <button class="planner-custom-add" data-date="${day.date}" data-slot="${slot}">+</button>
+                    </div>
                 </div>
             `).join('')}
             <div class="planner-day-totals">
@@ -127,16 +130,26 @@ function renderGrid(data) {
     });
 
     // Custom entry handlers
+    async function submitCustom(input) {
+        const text = input.value.trim();
+        if (!text) return;
+        await fetch('/api/plan/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: input.dataset.date, slot: input.dataset.slot, custom_text: text }),
+        });
+        input.value = '';
+        refresh();
+    }
+
     grid.querySelectorAll('.planner-custom-input').forEach(input => {
-        input.addEventListener('keydown', async (e) => {
-            if (e.key !== 'Enter' || !input.value.trim()) return;
-            await fetch('/api/plan/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: input.dataset.date, slot: input.dataset.slot, custom_text: input.value.trim() }),
-            });
-            input.value = '';
-            refresh();
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCustom(input); });
+    });
+
+    grid.querySelectorAll('.planner-custom-add').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = btn.closest('.planner-custom-row').querySelector('.planner-custom-input');
+            submitCustom(input);
         });
     });
 }

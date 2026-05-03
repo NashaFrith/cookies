@@ -1376,8 +1376,15 @@ body {
     color: var(--text-soft);
 }
 
+.planner-custom-row {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.2rem;
+}
+
 .planner-custom-input {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     font-size: 0.75rem;
     font-family: var(--font-body);
     border: 1px dashed var(--border);
@@ -1385,11 +1392,27 @@ body {
     padding: 0.2rem 0.35rem;
     background: transparent;
     color: var(--text-main);
-    margin-top: 0.2rem;
 }
 
 .planner-custom-input:focus {
     outline: none;
+    border-color: var(--text-muted);
+}
+
+.planner-custom-add {
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.1rem 0.4rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.planner-custom-add:hover {
+    color: var(--text-main);
     border-color: var(--text-muted);
 }
 
