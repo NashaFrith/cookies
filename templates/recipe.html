@@ -123,11 +123,27 @@
             <span class="star {% if note.rating and i <= note.rating %}filled{% endif %}" data-val="{{ i }}">★</span>
             {% endfor %}
         </div>
-        <textarea class="form-input notes-textarea" id="notes-text" placeholder="How did it go? Any tweaks?">{{ note.text or '' }}</textarea>
+
+        <div id="notes-list">
+            {% for n in note.notes %}
+            <div class="note-item" data-id="{{ n.id }}">
+                <div class="note-meta">
+                    <span class="note-author">{{ n.author | capitalize }}</span>
+                    {% if n.timestamp %}<span class="note-date">{{ n.timestamp }}</span>{% endif %}
+                    {% if role != 'guest' %}<button class="note-delete-btn" data-id="{{ n.id }}" aria-label="Delete">×</button>{% endif %}
+                </div>
+                <p class="note-text">{{ n.text }}</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if role != 'guest' %}
+        <textarea class="form-input notes-textarea" id="notes-text" placeholder="Add a note..."></textarea>
         <div class="notes-actions">
-            <button class="btn-primary" id="save-note-btn">Save Note</button>
+            <button class="btn-primary" id="save-note-btn">Add Note</button>
             <span class="notes-saved-msg" id="notes-saved-msg"></span>
         </div>
+        {% endif %}
     </div>
 
     <div class="mf-hint">
@@ -198,18 +214,49 @@
         });
     });
 
-    document.getElementById('save-note-btn').addEventListener('click', () => {
-        const text = document.getElementById('notes-text').value.trim();
-        const msg = document.getElementById('notes-saved-msg');
-        fetch('/api/notes/{{ recipe.id }}', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rating: currentRating, text }),
-        }).then(() => {
-            msg.textContent = 'Saved!';
-            setTimeout(() => { msg.textContent = ''; }, 2000);
+    function attachDeleteHandlers() {
+        document.querySelectorAll('.note-delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!confirm('Delete this note?')) return;
+                fetch('/api/notes/{{ recipe.id }}/' + btn.dataset.id, { method: 'DELETE' })
+                    .then(() => btn.closest('.note-item').remove());
+            });
         });
-    });
+    }
+    attachDeleteHandlers();
+
+    const saveBtn = document.getElementById('save-note-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const textarea = document.getElementById('notes-text');
+            const text = textarea.value.trim();
+            const msg = document.getElementById('notes-saved-msg');
+            fetch('/api/notes/{{ recipe.id }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rating: currentRating, text }),
+            }).then(r => r.json()).then(data => {
+                if (text && data.note) {
+                    const n = data.note;
+                    const div = document.createElement('div');
+                    div.className = 'note-item';
+                    div.dataset.id = n.id;
+                    div.innerHTML = `
+                        <div class="note-meta">
+                            <span class="note-author">${n.author.charAt(0).toUpperCase() + n.author.slice(1)}</span>
+                            <span class="note-date">${n.timestamp}</span>
+                            <button class="note-delete-btn" data-id="${n.id}" aria-label="Delete">×</button>
+                        </div>
+                        <p class="note-text">${n.text}</p>`;
+                    document.getElementById('notes-list').appendChild(div);
+                    attachDeleteHandlers();
+                    textarea.value = '';
+                }
+                msg.textContent = 'Saved!';
+                setTimeout(() => { msg.textContent = ''; }, 2000);
+            });
+        });
+    }
 
     document.getElementById('delete-btn').addEventListener('click', function() {
         if (confirm('Delete "' + this.dataset.name + '"? This cannot be undone.')) {

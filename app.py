@@ -482,6 +482,16 @@ def recipe_delete(recipe_id):
     save_recipes(recipes)
     return redirect(url_for('index'))
 
+def _normalize_note(raw):
+    if not raw:
+        return {'rating': 0, 'notes': []}
+    if 'notes' in raw:
+        return raw
+    notes = []
+    if raw.get('text', '').strip():
+        notes.append({'id': '0', 'author': 'family', 'text': raw['text'].strip(), 'timestamp': ''})
+    return {'rating': raw.get('rating', 0), 'notes': notes}
+
 @app.route('/recipe/<recipe_id>')
 @require_auth()
 def recipe_page(recipe_id):
@@ -489,24 +499,44 @@ def recipe_page(recipe_id):
     notes = load_notes()
     for r in recipes:
         if r['id'] == recipe_id:
-            return render_template('recipe.html', recipe=r, note=notes.get(recipe_id, {}))
+            return render_template('recipe.html', recipe=r,
+                                   note=_normalize_note(notes.get(recipe_id, {})),
+                                   role=get_role())
     abort(404)
 
 @app.route('/api/notes/<recipe_id>', methods=['GET'])
 @require_auth()
 def get_note(recipe_id):
     notes = load_notes()
-    return jsonify(notes.get(recipe_id, {}))
+    return jsonify(_normalize_note(notes.get(recipe_id, {})))
 
 @app.route('/api/notes/<recipe_id>', methods=['POST'])
 @require_auth(write=True)
 def save_note(recipe_id):
+    import time as _time
     data = request.get_json()
     notes = load_notes()
-    notes[recipe_id] = {
-        'rating': int(data.get('rating', 0)),
-        'text': data.get('text', '').strip(),
-    }
+    existing = _normalize_note(notes.get(recipe_id, {}))
+    existing['rating'] = int(data.get('rating', 0))
+    text = data.get('text', '').strip()
+    if text:
+        existing['notes'].append({
+            'id': str(int(_time.time() * 1000)),
+            'author': get_role() or 'family',
+            'text': text,
+            'timestamp': _time.strftime('%Y-%m-%d'),
+        })
+    notes[recipe_id] = existing
+    save_notes(notes)
+    return jsonify({'ok': True, 'note': existing['notes'][-1] if text else None})
+
+@app.route('/api/notes/<recipe_id>/<note_id>', methods=['DELETE'])
+@require_auth(write=True)
+def delete_note(recipe_id, note_id):
+    notes = load_notes()
+    existing = _normalize_note(notes.get(recipe_id, {}))
+    existing['notes'] = [n for n in existing['notes'] if n['id'] != note_id]
+    notes[recipe_id] = existing
     save_notes(notes)
     return jsonify({'ok': True})
 
@@ -552,12 +582,21 @@ def api_plan():
         day_totals = {'calories': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0}
         for slot in MEAL_SLOTS:
             slot_recipes = []
-            for rid in day_plan.get(slot, []):
-                r = recipe_map.get(rid)
-                if r:
-                    slot_recipes.append({'id': r['id'], 'name': r['name'], 'macros': r['macros']})
-                    for key in day_totals:
-                        day_totals[key] += r['macros'].get(key, 0)
+            for entry in day_plan.get(slot, []):
+                if isinstance(entry, str):
+                    r = recipe_map.get(entry)
+                    if r:
+                        slot_recipes.append({'type': 'recipe', 'id': r['id'], 'name': r['name'], 'macros': r['macros']})
+                        for key in day_totals:
+                            day_totals[key] += r['macros'].get(key, 0)
+                elif entry.get('type') == 'recipe':
+                    r = recipe_map.get(entry['id'])
+                    if r:
+                        slot_recipes.append({'type': 'recipe', 'id': r['id'], 'name': r['name'], 'macros': r['macros']})
+                        for key in day_totals:
+                            day_totals[key] += r['macros'].get(key, 0)
+                elif entry.get('type') == 'custom':
+                    slot_recipes.append({'type': 'custom', 'id': entry['id'], 'name': entry['text']})
             slots[slot] = slot_recipes
         for key in week_totals:
             week_totals[key] += day_totals[key]
@@ -571,16 +610,28 @@ def api_plan():
 @app.route('/api/plan/add', methods=['POST'])
 @require_auth(write=True)
 def api_plan_add():
+    import time as _time
     data = request.get_json()
     date_str = data.get('date')
     slot = data.get('slot')
     recipe_id = data.get('recipe_id')
-    if not all([date_str, slot, recipe_id]) or slot not in MEAL_SLOTS:
+    custom_text = (data.get('custom_text') or '').strip()
+    if not all([date_str, slot]) or slot not in MEAL_SLOTS:
+        abort(400)
+    if not recipe_id and not custom_text:
         abort(400)
     plan = load_plan()
     plan.setdefault(date_str, {}).setdefault(slot, [])
-    if recipe_id not in plan[date_str][slot]:
-        plan[date_str][slot].append(recipe_id)
+    if recipe_id:
+        existing_ids = [e if isinstance(e, str) else e.get('id') for e in plan[date_str][slot]]
+        if recipe_id not in existing_ids:
+            plan[date_str][slot].append(recipe_id)
+    else:
+        plan[date_str][slot].append({
+            'type': 'custom',
+            'id': f'custom-{int(_time.time() * 1000)}',
+            'text': custom_text,
+        })
     save_plan(plan)
     return jsonify({'ok': True})
 
@@ -590,10 +641,12 @@ def api_plan_remove():
     data = request.get_json()
     date_str = data.get('date')
     slot = data.get('slot')
-    recipe_id = data.get('recipe_id')
+    entry_id = data.get('entry_id') or data.get('recipe_id')
     plan = load_plan()
     if date_str in plan and slot in plan.get(date_str, {}):
-        plan[date_str][slot] = [r for r in plan[date_str][slot] if r != recipe_id]
+        def _not_match(e):
+            return (e if isinstance(e, str) else e.get('id')) != entry_id
+        plan[date_str][slot] = [e for e in plan[date_str][slot] if _not_match(e)]
     save_plan(plan)
     return jsonify({'ok': True})
 

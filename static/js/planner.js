@@ -73,7 +73,7 @@ function renderGrid(data) {
                 <div class="planner-slot">
                     <div class="planner-slot-label">${MEAL_LABELS[slot]}</div>
                     ${day.slots[slot].map(r => `
-                        <div class="planner-item">
+                        <div class="planner-item${r.type === 'custom' ? ' planner-item-custom' : ''}">
                             <span class="planner-item-name">${r.name}</span>
                             <button class="planner-remove"
                                 data-date="${day.date}"
@@ -82,9 +82,11 @@ function renderGrid(data) {
                         </div>
                     `).join('')}
                     <select class="planner-select" data-date="${day.date}" data-slot="${slot}">
-                        <option value="">+ add</option>
+                        <option value="">+ recipe</option>
                         ${groupedOpts}
                     </select>
+                    <input class="planner-custom-input" type="text" placeholder="+ custom..."
+                        data-date="${day.date}" data-slot="${slot}">
                 </div>
             `).join('')}
             <div class="planner-day-totals">
@@ -104,13 +106,13 @@ function renderGrid(data) {
             await fetch('/api/plan/remove', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: btn.dataset.date, slot: btn.dataset.slot, recipe_id: btn.dataset.id }),
+                body: JSON.stringify({ date: btn.dataset.date, slot: btn.dataset.slot, entry_id: btn.dataset.id }),
             });
             refresh();
         });
     });
 
-    // Add handlers
+    // Recipe select handlers
     grid.querySelectorAll('.planner-select').forEach(sel => {
         sel.addEventListener('change', async () => {
             if (!sel.value) return;
@@ -120,6 +122,20 @@ function renderGrid(data) {
                 body: JSON.stringify({ date: sel.dataset.date, slot: sel.dataset.slot, recipe_id: sel.value }),
             });
             sel.value = '';
+            refresh();
+        });
+    });
+
+    // Custom entry handlers
+    grid.querySelectorAll('.planner-custom-input').forEach(input => {
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            await fetch('/api/plan/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: input.dataset.date, slot: input.dataset.slot, custom_text: input.value.trim() }),
+            });
+            input.value = '';
             refresh();
         });
     });
